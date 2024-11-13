@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# set -e
+
 # Dependencies:
 #   * `gh` Github CLI: https://cli.github.com
 #   * `jq` JSON parser: https://github.com/jqlang/jq
@@ -8,14 +10,14 @@
 #   1. Create a dedicated `rust-gpu-bot` user.
 #   2. Update the following variables:
 # The repo to which issues should be copied.
-RUST_GPU_REPO=tombh/rust-gpu-migrate-issues
+RUST_GPU_REPO=Rust-GPU/rust-gpu
 # We could use "@" to ping the original author of the issue.
 AUTHOR_PREFIX=""
 # The repo where the original issues are (ie Embark) and so where an issue comment should be made notifying of the new
 # tracking issue.
-REPO_TO_NOTIFY=tombh/rust-gpu-migrate-issues
+REPO_TO_NOTIFY=embarkstudios/rust-gpu
 
-START_FROM_ISSUE_NUMBER=1150 # Useful if the migration crashes half way though.
+START_FROM_ISSUE_NUMBER=416 # Useful if the migration crashes half way though.
 EMBARK_REPO=embarkstudios/rust-gpu
 CACHED_ISSUES_FILE=issues.json
 
@@ -46,19 +48,20 @@ function main {
 			new_issue_number=$(create_rust_gpu_issue "$author" "$title" "$body" "$labels" "$reactionGroups" "$createdAt" "$url")
 			create_comments "$new_issue_number" "$comments"
 			create_comment_in_old_issue "$old_issue_number" "$new_issue_number"
-
+			# exit
 			echo
 		done
 
 }
 
 function github_api {
-	# Rate limit is 5000 requests per hour. So try not to go over that.
+	gh "$@"
+
+	# Rate limit is 5000 _points_ per hour. I'm not clear exactly how many points this script uses, but some throttling is
+	# definitely needed.
 	# If you're sure that there's not going to be any problems then I doubt all the old Embark issues and comments
 	# will generate this many API requests. So it'd be fine to set this to 0.
-	sleep 1
-
-	gh "$@"
+	sleep 10
 }
 
 function get_embark_issues {
@@ -143,7 +146,7 @@ function create_comment_in_old_issue {
 
 	echo -n "Creating comment in old repo: "
 	github_api \
-		issue comment "$new_issue_number" \
+		issue comment "$old_issue_number" \
 		--repo "$REPO_TO_NOTIFY" \
 		--body "$comment"
 }
@@ -218,7 +221,8 @@ function generate_reactions_text {
 function generate_labels {
 	old_labels=$1
 
-	echo -n "migrated,"
+	# Requires the "migrated" label to exist in the destination repo
+	# echo -n "migrated,"
 
 	echo "$old_labels" | jq -c '.[]' |
 		while read -r object; do
